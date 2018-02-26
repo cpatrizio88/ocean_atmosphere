@@ -91,27 +91,67 @@ lons = sst.getLongitude()[:]
 nlat = len(lats)
 nlon = len(lons)
 
+sst_anave = an_ave(sst)
+thf_anave = an_ave(thf)
+sst_globeave = spatial_ave(sst_anave, lats)
+thf_globeave = spatial_ave(thf_anave, lats)
+sstprime = sst_anave.T - sst_globeave
+sstprime = sstprime.T
+thfprime = thf_anave.T - thf_globeave
+thfprime = thfprime.T
 
-windows = [1,3,12,24,48,10*12]
 
+#UNCOMMENT FOR MONTHLY CORRELATIONS
+#windows = np.array([3,5,11,25,49,121])
+windows = np.array([3,5,7,11])
 nwindow = len(windows)
 
 corrs = MV.zeros((nwindow, nlat, nlon))
+corrs_deltasst = MV.zeros((nwindow, nlat, nlon))
 
 #calculate correlation between sst and thf for different smoothing windows 
 #(should have negative correlation for short windows, positive correlation for long windows?)
 for k, N in enumerate(windows):
-    sst_smooth = running_mean(sst, N)
-    thf_smooth = running_mean(thf, N)
+    #UNCOMMENT FOR MONTHLY CORRELATIONS
+    #sst_smooth = running_mean(sst, N)
+    sst_smooth = running_mean(sstprime, N)
+    #thf_smooth = running_mean(thf, N)
+    thf_smooth = running_mean(thfprime, N)
     for i in range(nlat):
         for j in range(nlon):
          #regr = linear_model.LinearRegression()
          #regr.fit(sst_globe_an[:,i,j], AMO_std)
          slope, intercept, r_value, p_value, std_err = linregress(sst_smooth[:,i,j], thf_smooth[:,i,j])
          corrs[k,i,j]=r_value
-         
+         deltasst = sst[(N-1):,i,j] - sst[:-(N-1),i,j]
+         ci = (N-1)/2
+         thfs = thf[ci:-ci,i,j]
+         slope, intercept, r_value, p_value, std_err = linregress(deltasst, thfs)
+         corrs_deltasst[k,i,j] = r_value
+
+
 par = np.arange(-90.,91.,15.)
 mer = np.arange(-180.,181.,30.)
+
+lindx=np.where(lats > 0)[0][0]
+uindx = -1
+corrs_NHmean = spatial_ave(corrs[:,lindx:uindx,:], lats[lindx:uindx])
+
+corrs_deltasst_NHmean = spatial_ave(corrs_deltasst[:,lindx:uindx,:], lats[lindx:uindx])
+
+plt.figure(1)
+plt.plot(windows, corrs_NHmean)
+plt.xlabel('smoothing (years)')
+plt.title('NH mean correlation between smoothed SST and THF')
+plt.savefig(fout + 'THF_sst_corr_smooth_globemean.pdf')
+plt.close()
+
+plt.figure(2)
+plt.plot(windows, corrs_deltasst_NHmean)
+plt.xlabel(r'$\Delta t$ (years)')
+plt.title('NH mean correlation between $\Delta$SST and THF')
+plt.savefig(fout + 'THF_deltasst_corr_globemean.pdf')
+plt.close()
 
 lstep = 0.01
 levels = np.arange(-1.0, 1.0+lstep, lstep)
@@ -131,8 +171,10 @@ m.contourf(x, y, corrs[0,:,:], cmap=plt.cm.RdBu_r, levels=levels, extend='both')
 m.colorbar()
 #m.contourf(x, y, sstpvals, colors='none', levels=np.linspace(0.2,1.0,50), alpha=0.2, hatch='...')
 m.fillcontinents(color='white')
-plt.title(r'correlation between {:2.1f}-year smoothed SST and THF'.format(windows[0]/12.))
-plt.savefig(fout + 'THF_sst_corr_{:3.0f}monthsmooth_map.pdf'.format(windows[0]))
+#plt.title(r'correlation between {:2.1f}-year smoothed SST and THF'.format(windows[0]/12.))
+#plt.savefig(fout + 'THF_sst_corr_{:3.0f}monthsmooth_map.pdf'.format(windows[0]))
+plt.title(r'correlation between {:2.1f}-year smoothed SST and THF'.format(windows[0]))
+plt.savefig(fout + 'THF_sst_corr_{:3.0f}yearsmooth_map.pdf'.format(windows[0]))
 plt.close()
 
 plt.figure(figsize=(10,8))
@@ -146,13 +188,64 @@ m.drawmeridians(mer, dashes=[100,0.001], linewidth=0.1)
 #pvals, lonss = shiftgrid(180, pvals, lons, start=False)
 x, y = m(*np.meshgrid(lons, lats))
 #levels=np.linspace(-1.1, 1.1, 43)
-m.contourf(x, y, corrs[4,:,:], cmap=plt.cm.RdBu_r, levels=levels, extend='both')
+m.contourf(x, y, corrs[3,:,:], cmap=plt.cm.RdBu_r, levels=levels, extend='both')
 m.colorbar()
 #m.contourf(x, y, sstpvals, colors='none', levels=np.linspace(0.2,1.0,50), alpha=0.2, hatch='...')
 m.fillcontinents(color='white')
-plt.title(r'correlation between {:2.1f}-year smoothed SST and THF'.format(windows[4]/12.))
-plt.savefig(fout + 'THF_sst_corr_{:3.0f}monthsmooth_map.pdf'.format(windows[4]))
+#plt.title(r'correlation between {:2.1f}-year smoothed SST and THF'.format(windows[4]/12.))
+#plt.savefig(fout + 'THF_sst_corr_{:3.0f}monthsmooth_map.pdf'.format(windows[4]))
+plt.title(r'correlation between {:2.1f}-year smoothed SST and THF'.format(windows[3]))
+plt.savefig(fout + 'THF_sst_corr_{:3.0f}yearsmooth_map.pdf'.format(windows[3]))
 plt.close()
+
+plt.figure(figsize=(10,8))
+#m = Basemap(projection='cyl',llcrnrlat=0,urcrnrlat=75,llcrnrlon=280,urcrnrlon=360,resolution='i')
+m = Basemap(projection='moll',lon_0=180,resolution='i')
+m.drawcoastlines(linewidth=0.1)
+m.drawparallels(par, dashes=[100,0.001], labels=[1,0,0,1], linewidth=0.1)
+#m.drawmeridians(mer, dashes=[100,0.001], labels=[1,0,0,1], linewidth=0.1)
+m.drawmeridians(mer, dashes=[100,0.001], linewidth=0.1)
+#corrss, lonss = shiftgrid(180, sstcorrs, lons, start=False)
+#pvals, lonss = shiftgrid(180, pvals, lons, start=False)
+x, y = m(*np.meshgrid(lons, lats))
+#levels=np.linspace(-1.1, 1.1, 43)
+m.contourf(x, y, corrs_deltasst[0,:,:], cmap=plt.cm.RdBu_r, levels=levels, extend='both')
+m.colorbar()
+#m.contourf(x, y, sstpvals, colors='none', levels=np.linspace(0.2,1.0,50), alpha=0.2, hatch='...')
+m.fillcontinents(color='white')
+#plt.title(r'correlation between $\Delta$SST and THF, $\Delta t$ = {:3.1f} years'.format(windows[0]/12.))
+#plt.savefig(fout + 'THF_deltasst_corr_{:3.0f}month_map.pdf'.format(windows[0]))
+plt.title(r'correlation between $\Delta$SST and THF, $\Delta t$ = {:3.1f} years'.format(windows[0]))
+plt.savefig(fout + 'THF_deltasst_corr_{:3.0f}year_map.pdf'.format(windows[0]))
+plt.close()
+
+plt.figure(figsize=(10,8))
+#m = Basemap(projection='cyl',llcrnrlat=0,urcrnrlat=75,llcrnrlon=280,urcrnrlon=360,resolution='i')
+m = Basemap(projection='moll',lon_0=180,resolution='i')
+m.drawcoastlines(linewidth=0.1)
+m.drawparallels(par, dashes=[100,0.001], labels=[1,0,0,1], linewidth=0.1)
+#m.drawmeridians(mer, dashes=[100,0.001], labels=[1,0,0,1], linewidth=0.1)
+m.drawmeridians(mer, dashes=[100,0.001], linewidth=0.1)
+#corrss, lonss = shiftgrid(180, sstcorrs, lons, start=False)
+#pvals, lonss = shiftgrid(180, pvals, lons, start=False)
+x, y = m(*np.meshgrid(lons, lats))
+#levels=np.linspace(-1.1, 1.1, 43)
+m.contourf(x, y, corrs_deltasst[3,:,:], cmap=plt.cm.RdBu_r, levels=levels, extend='both')
+m.colorbar()
+#m.contourf(x, y, sstpvals, colors='none', levels=np.linspace(0.2,1.0,50), alpha=0.2, hatch='...')
+m.fillcontinents(color='white')
+#plt.title(r'correlation between $\Delta$SST and THF, $\Delta t$ = {:3.1f} years'.format(windows[4]/12.))
+#plt.savefig(fout + 'THF_deltasst_corr_{:3.0f}month_map.pdf'.format(windows[4]))
+plt.title(r'correlation between $\Delta$SST and THF, $\Delta t$ = {:3.1f} years'.format(windows[3]))
+plt.savefig(fout + 'THF_deltasst_corr_{:3.0f}year_map.pdf'.format(windows[3]))
+plt.close()
+
+
+
+
+
+
+
 
 #compute annual averages
 

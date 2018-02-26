@@ -16,7 +16,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap, shiftgrid
 from scipy.stats.stats import pearsonr, linregress
-from AMO.misc_fns import an_ave, spatial_ave, running_mean
+from AMO.misc_fns import an_ave, spatial_ave, calc_AMO, running_mean
 
 #preliminary analysis
 #1. look at maps of SST and THF
@@ -73,6 +73,11 @@ shf = f('HFLUXWTR')
 shf = shf.subRegion(latitude=(llat, ulat), longitude=(0, 360))
 shf = shf[tskip:,:]
 
+lats = sst.getLatitude()[:]
+lons = sst.getLongitude()[:]
+lons[0] = 0
+nlat = len(lats)
+nlon = len(lons)
 
 #thf is positive down (energy input into ocean surface by surface fluxes)
 thf = lhf + shf
@@ -81,44 +86,104 @@ thf = lhf + shf
 #thf = -thf
 t = sst.getTime().asRelativeTime("months since 1980")
 t = np.array([x.value for x in t])
-t = 1981 + t/12.
+t = 1980 + t/12.
 
-tyears = np.arange(np.round(t[0]), np.round(t[-1]))
+tyears = np.arange(np.ceil(t[0]), np.round(t[-1]))
 
-lats = sst.getLatitude()[:]
-lons = sst.getLongitude()[:]
+latbounds = [40, 60]
 
-nlat = len(lats)
-nlon = len(lons)
+#initial/final indices for base period
+baseti = 0
+basetf = 20
 
+AMO, sstanom_globe_an, sstanom_na_an = calc_AMO(sst, latbounds, baseti, basetf)
 
-windows = [1,3,12,24,48,10*12]
+sst_an = an_ave(sst)
+thf_an = an_ave(thf)
 
-nwindow = len(windows)
+AMOstd = (AMO - np.ma.mean(AMO))/np.ma.std(AMO)
 
-corrs = MV.zeros((nwindow, nlat, nlon))
+sstcorrs = MV.zeros((nlat,nlon))
+thfcorrs = MV.zeros((nlat,nlon))
+sstpvals = MV.zeros((nlat,nlon))
 
-#calculate correlation between sst and thf for different smoothing windows 
-#(should have negative correlation for short windows, positive correlation for long windows?)
-for k, N in enumerate(windows):
-    sst_smooth = running_mean(sst, N)
-    thf_smooth = running_mean(thf, N)
-    for i in range(nlat):
-        for j in range(nlon):
+#compute correlation between AMO and sst
+for i in range(nlat):
+    for j in range(nlon):
          #regr = linear_model.LinearRegression()
          #regr.fit(sst_globe_an[:,i,j], AMO_std)
-         slope, intercept, r_value, p_value, std_err = linregress(sst_smooth[:,i,j], thf_smooth[:,i,j])
-         corrs[k,i,j]=r_value
+         slope, intercept, r_value, p_value, std_err = linregress(AMOstd, sst_an[:,i,j])
+         sstcorrs[i,j] = r_value
+         sstpvals[i,j] = p_value
+         slope, intercept, r_value, p_value, std_err = linregress(AMOstd, thf_an[:,i,j])
+         thfcorrs[i,j] = r_value
          
+#Lagged correlation of THFmid and AMOmid        
+THFmid = thf.subRegion(latitude=(latbounds[0],latbounds[1]), longitude=(280,360))
+THFmid = spatial_ave(THFmid, THFmid.getLatitude()[:])
+THFmid = an_ave(THFmid)
+
+nlag=10
+windows = np.arange(1,nlag+1)
+lags = np.arange(-nlag,nlag)
+
+ll, ww = np.meshgrid(lags, windows)
+
+THFmid_laggedcorr = np.zeros((len(windows), 2*nlag))
+#AMOmid_autocorr = np.zeros((len(windows), 2*nlag))
+
+#commpute lagged correlation between smoothed AMO and THF for different smoothing window lengths
+for k, N in enumerate(windows):
+    AMOstd_smooth = running_mean(AMOstd, N)
+    THFmid_smooth = running_mean(THFmid, N)
+    a = (AMOstd_smooth - np.mean(AMOstd_smooth)) / (np.std(AMOstd_smooth) * len(AMOstd_smooth))
+    b = (THFmid_smooth - np.mean(THFmid_smooth)) / (np.std(THFmid_smooth))
+    lagzero = len(THFmid_smooth)/2
+    THFmid_laggedcorr[k,:] = np.correlate(a,b, 'full')[lagzero-nlag:lagzero+nlag]
+    #AMOmid_autocorr[k,:] = np.correlate(AMOstd_smooth, AMOstd_smooth, 'full')[lagzero-nlag:lagzero+nlag]
+    
+    
+fig=plt.figure(figsize=(10,8))
+ax = fig.add_subplot(211)
+ax.contourf(ll, ww, THFmid_laggedcorr, 40, cmap=plt.cm.RdBu_r)
+ax.set_title('long term correlation between AMO and THF'.format(N))
+ax.set_xlabel('THF lag (years)')
+ax.set_ylabel('smoothing (years)')
+plt.savefig(fout + 'AMO_thf_corr_smoothlag_hist.pdf')
+plt.close()
+
+fig=plt.figure(figsize=(12,10))
+ax = fig.add_subplot(211)
+ax.plot(tyears, sstanom_globe_an)
+ax.set_title(r'global mean SST anomaly (base period: {:3.0f} to {:3.0f})'.format(tyears[baseti], tyears[basetf]))
+ax.axhline(0, color='black')
+ax = fig.add_subplot(212)
+ax.plot(tyears, sstanom_na_an)
+ax.axhline(0, color='black')
+ax.set_title(r'mean NA SST anomaly ({:1.0f}$^{{\circ}}$N to {:2.0f}$^{{\circ}}$N)'.format(latbounds[0], latbounds[1]))
+plt.savefig(fout + 'global_NA_SST_anomaly_timeseries.pdf')
+plt.close()
+
+N=5
+ci = (N-1)/2
+smooth_AMO = running_mean(AMO, N)
+plt.figure()
+plt.plot(tyears, AMO)
+plt.plot(tyears[ci:-ci],smooth_AMO)
+plt.title(r'AMO ({:2.0f}$^{{\circ}}$N to {:2.0f}$^{{\circ}}$N)'.format(latbounds[0], latbounds[1]))
+plt.axhline(0, color='black')
+plt.savefig(fout + 'AMO_timeseries.pdf')
+plt.close()
+
 par = np.arange(-90.,91.,15.)
 mer = np.arange(-180.,181.,30.)
 
 lstep = 0.01
 levels = np.arange(-1.0, 1.0+lstep, lstep)
-         
+
 plt.figure(figsize=(10,8))
-#m = Basemap(projection='cyl',llcrnrlat=0,urcrnrlat=75,llcrnrlon=280,urcrnrlon=360,resolution='i')
-m = Basemap(projection='moll',lon_0=180,resolution='i')
+m = Basemap(projection='cyl',llcrnrlat=0,urcrnrlat=75,llcrnrlon=280,urcrnrlon=360,resolution='i')
+#m = Basemap(projection='moll',lon_0=180,resolution='i')
 m.drawcoastlines(linewidth=0.1)
 m.drawparallels(par, dashes=[100,0.001], labels=[1,0,0,1], linewidth=0.1)
 #m.drawmeridians(mer, dashes=[100,0.001], labels=[1,0,0,1], linewidth=0.1)
@@ -127,17 +192,17 @@ m.drawmeridians(mer, dashes=[100,0.001], linewidth=0.1)
 #pvals, lonss = shiftgrid(180, pvals, lons, start=False)
 x, y = m(*np.meshgrid(lons, lats))
 #levels=np.linspace(-1.1, 1.1, 43)
-m.contourf(x, y, corrs[0,:,:], cmap=plt.cm.RdBu_r, levels=levels, extend='both')
+m.contourf(x, y, sstcorrs, cmap=plt.cm.RdBu_r, levels=levels, extend='both')
 m.colorbar()
 #m.contourf(x, y, sstpvals, colors='none', levels=np.linspace(0.2,1.0,50), alpha=0.2, hatch='...')
 m.fillcontinents(color='white')
-plt.title(r'correlation between {:2.1f}-year smoothed SST and THF'.format(windows[0]/12.))
-plt.savefig(fout + 'THF_sst_corr_{:3.0f}monthsmooth_map.pdf'.format(windows[0]))
+plt.title(r'regression of AMO index ({:1.0f}$^{{\circ}}$N to {:2.0f}$^{{\circ}}$N) onto SST'.format(latbounds[0], latbounds[1]))
+plt.savefig(fout + 'AMO_sst_corr_map.pdf')
 plt.close()
 
 plt.figure(figsize=(10,8))
-#m = Basemap(projection='cyl',llcrnrlat=0,urcrnrlat=75,llcrnrlon=280,urcrnrlon=360,resolution='i')
-m = Basemap(projection='moll',lon_0=180,resolution='i')
+m = Basemap(projection='cyl',llcrnrlat=0,urcrnrlat=75,llcrnrlon=280,urcrnrlon=360,resolution='i')
+#m = Basemap(projection='moll',lon_0=180,resolution='i')
 m.drawcoastlines(linewidth=0.1)
 m.drawparallels(par, dashes=[100,0.001], labels=[1,0,0,1], linewidth=0.1)
 #m.drawmeridians(mer, dashes=[100,0.001], labels=[1,0,0,1], linewidth=0.1)
@@ -145,17 +210,58 @@ m.drawmeridians(mer, dashes=[100,0.001], linewidth=0.1)
 #corrss, lonss = shiftgrid(180, sstcorrs, lons, start=False)
 #pvals, lonss = shiftgrid(180, pvals, lons, start=False)
 x, y = m(*np.meshgrid(lons, lats))
-#levels=np.linspace(-1.1, 1.1, 43)
-m.contourf(x, y, corrs[4,:,:], cmap=plt.cm.RdBu_r, levels=levels, extend='both')
+#levels=np.linspace(-1.1, 1.1, 23)
+m.contourf(x, y, thfcorrs, cmap=plt.cm.RdBu_r, levels=levels, extend='both')
 m.colorbar()
 #m.contourf(x, y, sstpvals, colors='none', levels=np.linspace(0.2,1.0,50), alpha=0.2, hatch='...')
 m.fillcontinents(color='white')
-plt.title(r'correlation between {:2.1f}-year smoothed SST and THF'.format(windows[4]/12.))
-plt.savefig(fout + 'THF_sst_corr_{:3.0f}monthsmooth_map.pdf'.format(windows[4]))
+plt.title(r'regression of AMO index ({:1.0f}$^{{\circ}}$N to {:2.0f}$^{{\circ}}$N) onto THF'.format(latbounds[0], latbounds[1]))
+plt.savefig(fout + 'AMO_thf_corr_map.pdf'.format(nlag))
 plt.close()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #compute annual averages
-
 #sstan = an_ave(sst)
 #lhfan = an_ave(lhf)
 #shfan = an_ave(shf)
@@ -200,7 +306,7 @@ plt.close()
 #levels=np.linspace(-20, 20, 51)
 #m.contourf(x, y, np.ma.average(sstprime, axis=0), cmap=plt.cm.RdBu_r, levels=levels, extend='both')
 #m.colorbar(label=r'$T - \overline{T}$ (K)')
-#ax.set_title(r'mean $T$ anomaly')
+#ax.set_title(r'detrended $T$')
 #ax = fig.add_subplot(212)
 #m = Basemap(projection='moll',lon_0=180,resolution='i')
 #m.drawcoastlines(linewidth=0.1)
@@ -209,10 +315,10 @@ plt.close()
 ##thfsave, lonss = shiftgrid(180, thfsave, lons, start=False)
 #x, y = m(*np.meshgrid(lons, lats))
 #levels=np.linspace(-100,100,51)
-#m.contourf(x, y, np.ma.average(thfprime, axis=0), cmap=plt.cm.viridis_r, levels=levels, extend='both')
+#m.contourf(x, y, np.ma.average(thfprime, axis=0), cmap=plt.cm.PRGn, levels=levels, extend='both')
 #m.colorbar(label=r'$THF - \overline{THF}$ (W/m$^{{-2}}$)')
-#ax.set_title(r'mean $THF$ anomaly')
+#ax.set_title(r'detrended $THF$')
 #plt.savefig(fout + 'sstprime_thfprime_map.pdf')
 #plt.close()
-#
-#
+
+
