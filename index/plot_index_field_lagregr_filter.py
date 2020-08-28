@@ -170,11 +170,11 @@ CRE_surf = Q_net_surf - Q_net_surf_cs
 #fsave = 'Qnetsurfcs'
 #units = r'W m$^{-2}$'
 
-field = LW_net_surf
-ftitle = r'$LW_{net}$'
-fsave = 'LWnetsurf'
-units = r'W m$^{-2}$'
-#
+#field = LW_net_surf
+#ftitle = r'$LW_{net}$'
+#fsave = 'LWnetsurf'
+#units = r'W m$^{-2}$'
+##
 #field = SW_net_surf
 #ftitle = r'$SW_{net}$'
 #fsave = 'SWnetsurf'
@@ -191,10 +191,10 @@ units = r'W m$^{-2}$'
 #units = r'W m$^{-2}$'
 
 
-#field = thf
-#ftitle = r'THF'
-#fsave = 'thf'
-#units = r'W m$^{-2}$'
+field = thf
+ftitle = r'THF'
+fsave = 'thf'
+units = r'W m$^{-2}$'
 
 #field = lhf
 #ftitle = r'LHF'
@@ -280,11 +280,11 @@ corr=True
 lterm=True
 rENSO=True
 drawbox=True
-plotmaps=False
+plotmaps=True
 
     
-lagmax = 6*12
-lagstep = 12
+lagmax = 12
+lagstep = 2
 lags = np.arange(-lagmax,lagmax+2*lagstep, lagstep)
     
 
@@ -382,7 +382,7 @@ nt = sst.shape[0]
 # CTI Filter requirements.
 order = 5
 fs = 1     # sample rate, (cycles per month)
-Tn = 12*7.
+Tn = 12*5.
 cutoff = 1/Tn  # desired cutoff frequency of the filter (cycles per month)
 
 #subtract global annual mean to isolate local processes
@@ -424,15 +424,15 @@ sst_st = sstprime - sst_lt
 
 #EDIT FOR INDEX OF INTEREST
 
-latw = 15
+latw = 20
 
-slats = np.array([5, 45])
+slats = np.array([25])
     
 for slati in slats:  
     
     nlati = slati+latw
-    wloni = 290
-    eloni = 350
+    wloni = 315
+    eloni = 345
     
     si = np.argmin(np.abs(lats - slati))
     ni = np.argmin(np.abs(lats - nlati))
@@ -771,6 +771,14 @@ for slati in slats:
         fieldstep =0.2
         cbstep=2.5
         
+    if corr:
+        fieldmin = -1
+        fieldmax= 1
+        fieldstep = 0.02
+        cbstep = 0.2
+        units = 'Correlation'
+        
+        
     ticks = np.round(np.arange(fieldmin,fieldmax+cbstep,cbstep),1)
     ticklbls = np.round(np.arange(fieldmin,fieldmax+cbstep,cbstep), 1)
     ticklbls[ticklbls == -0.0] = 0.0
@@ -782,6 +790,20 @@ for slati in slats:
     orient = 'horizontal'
     if lonbounds[1] - lonbounds[0] <= 180:
         orient = 'vertical'
+        
+    #for polygon, the origin is the center of the map? 
+    #shift onto -180 to 180 longitude, but then need to put origin on center of map?
+    x1=(wloni-360)-cent
+    y1=slati
+    
+    x2=(wloni-360)-cent
+    y2=nlati
+    
+    x3=(eloni-360)-cent
+    y3=nlati
+    
+    x4=(eloni-360)-cent
+    y4=slati  
     
     
     if plotmaps:
@@ -804,10 +826,13 @@ for slati in slats:
                 #ax.contour(x, y, pscorrs, levels=SLPlevels, colors='k', inline=1, linewidths=1)
                 plot = ax.contourf(x, y, fieldlagcorrs[leadi,...], cmap=cmap, levels=fieldlevels, extend='both', transform=cart.crs.PlateCarree())
                 cb = plt.colorbar(plot, orientation = orient, label=r'{:s}'.format(units))
+                if drawbox:
+                    poly = Polygon([(x1,y1),(x2,y2),(x3,y3),(x4,y4)],facecolor='none',edgecolor='black',linewidth=3,zorder=100)
+                    ax.add_patch(poly)
                 cb.set_ticks(ticks)
                 cb.set_ticklabels(ticklbls)
                 plt.title(r'{:s} ({:1.0f} month lag)'.format(ftitle, lags[leadi]))
-                plt.savefig(fout + '{:s}_SST{:2.0f}Nto{:2.0f}N_{:s}_lag{:1.0f}corr_map_{:2.0f}Nto{:2.0f}N_detr{:s}.pdf'.format(dataname, fsave, lags[leadi], latbounds[0], latbounds[1], str(detr)[0]))
+                plt.savefig(fout + '{:s}_SST{:2.0f}Nto{:2.0f}N_{:s}_lag{:1.0f}corr_map_{:2.0f}Nto{:2.0f}N_detr{:s}.pdf'.format(dataname, lats[si], lats[ni], fsave, lags[leadi], latbounds[0], latbounds[1], str(detr)[0]))
                 plt.close()
                 
                 
@@ -829,9 +854,12 @@ for slati in slats:
                     #ax.contour(x, y, pscorrs, levels=SLPlevels, colors='k', inline=1, linewidths=1)
                     plot = ax.contourf(x, y, fieldlagcorrs_lt[leadi,...], cmap=cmap, levels=fieldlevels, extend='both', transform=cart.crs.PlateCarree())
                     cb = plt.colorbar(plot, orientation = orient, label=r'{:s}'.format(units))
+                    if drawbox:
+                        poly = Polygon([(x1,y1),(x2,y2),(x3,y3),(x4,y4)],facecolor='none',edgecolor='black',linewidth=3,zorder=100)
+                        ax.add_patch(poly)
                     cb.set_ticks(ticks)
                     cb.set_ticklabels(ticklbls)
-                    plt.title(r'Long-term {:s} ({:1.0f} month lag)'.format(ftitle, lags[leadi]))
+                    plt.title(r'Long-term ({:1.0f}-yr LP) {:s} ({:1.0f} month lag)'.format(Tn/12., ftitle, lags[leadi]))
                     plt.savefig(fout + '{:s}_SST{:2.0f}Nto{:2.0f}N_{:s}_{:1.0f}LPlag{:1.0f}_map_{:2.0f}Nto{:2.0f}N_detr{:s}.pdf'.format(dataname, lats[si], lats[ni], fsave, Tn/12., lags[leadi], latbounds[0], latbounds[1], str(detr)[0]))
                     plt.close()
                     
@@ -852,12 +880,15 @@ for slati in slats:
                     #ax.contour(x, y, pscorrs, levels=SLPlevels, colors='k', inline=1, linewidths=1)
                     plot = ax.contourf(x, y, fieldlagcorrs_st[leadi,...], cmap=cmap, levels=fieldlevels, extend='both', transform=cart.crs.PlateCarree())
                     cb = plt.colorbar(plot, orientation = orient, label=r'{:s}'.format(units))
+                    if drawbox:
+                        poly = Polygon([(x1,y1),(x2,y2),(x3,y3),(x4,y4)],facecolor='none',edgecolor='black',linewidth=3,zorder=100)
+                        ax.add_patch(poly)
                     cb.set_ticks(ticks)
                     cb.set_ticklabels(ticklbls)
-                    plt.title(r'Short-term {:s} ({:1.0f} month lag)'.format(ftitle, lags[leadi]))
+                    plt.title(r'Short-term ({:1.0f}-yr HP) {:s} ({:1.0f} month lag)'.format(Tn/12., ftitle, lags[leadi]))
                     plt.savefig(fout + '{:s}_SST{:2.0f}Nto{:2.0f}N_{:s}_{:1.0f}HPlag{:1.0f}_map_{:2.0f}Nto{:2.0f}N_detr{:s}.pdf'.format(dataname, lats[si], lats[ni], fsave, Tn/12., lags[leadi], latbounds[0], latbounds[1], str(detr)[0]))
                     plt.close()
-                
+            
                 
     if fsave == 'ftotal' or fsave == 'fhigh' or fsave == 'fmid' or fsave == 'flow':
         fieldmin=-5
@@ -876,8 +907,9 @@ for slati in slats:
         cbstep=1.0
         
     if corr:
-        fieldminlag = -0.4 
-        fieldmaxlag = 0.4
+        fieldminlag = -1
+        fieldmaxlag= 1
+        fieldstep = 0.02
         cbsteplag = 0.2
         fieldunitslag = 'Correlation'
     
@@ -928,10 +960,11 @@ for slati in slats:
         cbstep=1.0
         
     if corr:
-        fieldminlag = -0.4 
-        fieldmaxlag = 0.4
-        cbsteplag = 0.2
-        fieldunitslag = 'Correlation'
+        fieldmin = -1
+        fieldmax= 1
+        fieldstep = 0.02
+        cbstep = 0.2
+        units = 'Correlation'
     
     else:
         fieldminlag = fieldmin
@@ -987,7 +1020,7 @@ for slati in slats:
         ax = fig.add_subplot(133)
         h = ax.pcolor(lagg, latt, fieldlagcorrs_st_zonalave.T, vmin=fieldminlag, vmax=fieldmaxlag, cmap=cmap)
         ax.axvline(0, color='k')
-        ax.set_title('Short-term {:s}'.format(ftitle))
+        ax.set_title('Short-term {:s} ({:1.0f}-yr HP)'.format(ftitle, Tn/12.))
         ax.set_xlabel(r'{:s} lag ({:s})'.format(ftitle, lagunits))
         ax.set_ylim(latbounds[0], latbounds[1])
         ax.set_xticks(laglabels)
@@ -1028,9 +1061,9 @@ for slati in slats:
         plt.close() 
         
             
-    NAfieldlagcorr_ave = spatial_ave(fieldlagcorrs[:,si:ni,:], lats[si:ni])
-    NAfieldlagcorr_lt_ave = spatial_ave(fieldlagcorrs_lt[:,si:ni,:], lats[si:ni])
-    NAfieldlagcorr_st_ave = spatial_ave(fieldlagcorrs_st[:,si:ni,:], lats[si:ni])
+    NAfieldlagcorr_ave = spatial_ave(fieldlagcorrs[:,si:ni,wi:ei], lats[si:ni])
+    NAfieldlagcorr_lt_ave = spatial_ave(fieldlagcorrs_lt[:,si:ni,wi:ei], lats[si:ni])
+    NAfieldlagcorr_st_ave = spatial_ave(fieldlagcorrs_st[:,si:ni,wi:ei], lats[si:ni])
     
     tsc = NAfieldlagcorr_ave/(np.sqrt((1-NAfieldlagcorr_ave**2)/(nt-2)))
     tsc_lt = NAfieldlagcorr_lt_ave/(np.sqrt((1-NAfieldlagcorr_lt_ave**2)/(nt_lt-2)))
@@ -1045,7 +1078,7 @@ for slati in slats:
     sigp = pval <= pvalc
     sigp_lt = pval_lt <= pvalc
     sigp_st = pval_st <= pvalc
- 
+     
             
     if lterm:
     
@@ -1075,7 +1108,7 @@ for slati in slats:
         if corr:
             plt.plot(lagplot[sigp_lt], NAfieldlagcorr_lt_ave[sigp_lt], '.', color='C0', markersize=10)
         ax.axvline(0, color='k')
-        ax.set_title('Long-term {:s}'.format(ftitle))
+        ax.set_title('Long-term {:s} ({:1.0f}-yr LP)'.format(ftitle, Tn/12.))
         ax.set_xlabel(r'{:s} lag ({:s})'.format(ftitle, lagunits))
         if corr:
             ax.set_ylabel('Correlation')
@@ -1090,7 +1123,7 @@ for slati in slats:
         if corr:
             plt.plot(lagplot[sigp_st], NAfieldlagcorr_st_ave[sigp_st], '.', color='C0', markersize=10)
         ax.axvline(0, color='k')
-        ax.set_title('Short-term {:s}'.format(ftitle))
+        ax.set_title('Short-term {:s} ({:1.0f}-yr HP)'.format(ftitle, Tn/12.))
         ax.set_xlabel(r'{:s} lag ({:s})'.format(ftitle, lagunits))
         if corr:
             ax.set_ylabel('Correlation')
@@ -1101,9 +1134,9 @@ for slati in slats:
         ax.axhline(0, color='k', linewidth=1)
         ax.set_xticklabels(laglabels)
         if corr:
-                plt.savefig(fout + '{:s}_SST{:2.0f}Nto{:2.0f}N_{:s}_lagcorr_lagmax{:3.0f}_NAave_{:2.0f}Nto{:2.0f}N_detr{:s}.pdf'.format(dataname, lats[si], lats[ni], fsave, lagmax, latbounds[0], latbounds[1], str(detr)[0]))
+                plt.savefig(fout + '{:s}_SST{:2.0f}Nto{:2.0f}N_{:s}_lagcorr_lagmax{:3.0f}_{:1.0f}LP_NAave_{:2.0f}Nto{:2.0f}N_detr{:s}.pdf'.format(dataname, lats[si], lats[ni], fsave, lagmax, Tn/12., latbounds[0], latbounds[1], str(detr)[0]))
         else:
-                plt.savefig(fout + '{:s}_SST{:2.0f}Nto{:2.0f}N_{:s}_lagregr_lagmax{:3.0f}_NAave_{:2.0f}Nto{:2.0f}N_detr{:s}.pdf'.format(dataname, lats[si], lats[ni], fsave, lagmax, latbounds[0], latbounds[1], str(detr)[0]))
+                plt.savefig(fout + '{:s}_SST{:2.0f}Nto{:2.0f}N_{:s}_lagregr_lagmax{:3.0f}_{:1.0f}LP_NAave_{:2.0f}Nto{:2.0f}N_detr{:s}.pdf'.format(dataname, lats[si], lats[ni], fsave, lagmax, Tn/12., latbounds[0], latbounds[1], str(detr)[0]))
         plt.close() 
         
     else:
@@ -1135,7 +1168,7 @@ for slati in slats:
         else:
                 plt.savefig(fout + '{:s}_SST{:2.0f}Nto{:2.0f}N_{:s}_lagregr_lagmax{:3.0f}_NAave_{:2.0f}Nto{:2.0f}N_detr{:s}.pdf'.format(dataname, lats[si], lats[ni], fsave, lagmax, latbounds[0], latbounds[1], str(detr)[0]))
         plt.close() 
-     
+         
 
 
 

@@ -822,15 +822,16 @@ for slati in slats:
         if line.get_linestyle() != [(None, None)]:
             line.set_linestyle([(0, (8.0, 8.0))])
     #if plotwinds:
-    qv1 = ax.quiver(x[::uskip,::uskip], y[::uskip,::uskip], ucorrs[::uskip,::uskip], vcorrs[::uskip,::uskip], transform=cart.crs.PlateCarree(), scale_units='inches', scale = 1, width=0.0015, headwidth=12, headlength=8, minshaft=2)
-    ax.quiverkey(qv1, 0.90, -.13, 0.5, '0.5 m/s')
+    #qv1 = ax.quiver(x[::uskip,::uskip], y[::uskip,::uskip], ucorrs[::uskip,::uskip], vcorrs[::uskip,::uskip], transform=cart.crs.PlateCarree(), scale_units='inches', scale = 1, width=0.0015, headwidth=12, headlength=8, minshaft=2)
+    #ax.quiverkey(qv1, 0.90, -.13, 0.5, '0.5 m/s')
         #ax.text(0.1, -.12, 'Max SLP: {:1.1f} hPa'.format(psmax), transform = ax.transAxes)
     if drawbox:
         poly = Polygon([(x1,y1),(x2,y2),(x3,y3),(x4,y4)],facecolor='none',edgecolor='black',linewidth=3,zorder=100)
         ax.add_patch(poly)
-    plt.title(r'SST, SLP and 10-m Winds')
+    #plt.title(r'SST, SLP and 10-m Winds')
+    plt.title(r'SST and SLP')
     #plt.title(r'regression of SST on AMO ({:1.0f}$^{{\circ}}$N to {:2.0f}$^{{\circ}}$N)'.format(latbounds[0], latbounds[1]))
-    plt.savefig(fout + '{:s}_{:s}{:2.0f}Nto{:2.0f}N_sstSLPuv_corr_map_{:2.0f}Nto{:2.0f}N_detr{:s}.pdf'.format(dataname, sstsave, lats[si], lats[ni], latbounds[0], latbounds[1], str(detr)[0]))
+    plt.savefig(fout + '{:s}_{:s}{:2.0f}Nto{:2.0f}N_sstSLP_corr_map_{:2.0f}Nto{:2.0f}N_detr{:s}.pdf'.format(dataname, sstsave, lats[si], lats[ni], latbounds[0], latbounds[1], str(detr)[0]))
     #plt.savefig(fout + '{:s}_AMO_sst_corr_map_{:2.0f}Nto{:2.0f}N_detr{:s}.pdf'.format(dataname, latbounds[0], latbounds[1], str(detr)[0]))
     plt.close()
     
@@ -862,7 +863,7 @@ for slati in slats:
         cb.set_ticks(sstticks)
         cb.set_ticklabels(sstticklbls)
         #if plotwinds:
-        ax.quiver(x[::uskip,::uskip], y[::uskip,::uskip], ucorrs_lt[::uskip,::uskip], vcorrs_lt[::uskip,::uskip], transform=cart.crs.PlateCarree(), scale_units='inches', scale = 1, width=0.0015, headwidth=12, headlength=8, minshaft=2)
+        qv1 = ax.quiver(x[::uskip,::uskip], y[::uskip,::uskip], ucorrs_lt[::uskip,::uskip], vcorrs_lt[::uskip,::uskip], transform=cart.crs.PlateCarree(), scale_units='inches', scale = 1, width=0.0015, headwidth=12, headlength=8, minshaft=2)
         ax.quiverkey(qv1, 0.90, -.13, 0.5, '0.5 m/s')
             #ax.text(0.1, -.12, 'Max SLP: {:1.1f} hPa'.format(psmax), transform = ax.transAxes)
         if drawbox:
